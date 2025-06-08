@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ゲームパッドからPCへ</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      font-size: 2rem;
+    }
+    label, p, button {
+      font-size: 1.2rem;
+    }
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 3rem;
+      }
+      label, p, button {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>ゲームパッドからPCへ</h1>
+  <button id="connectButton">接続</button>
+  <button id="send">メッセージ送信</button>
+  <p id="status">ゲームパッドを待機中...</p>
+  <p id="connectionStatus">未接続</p>
+
+  <script>
+    let ws;
+    let gamepadIndex;
+    let wakeLock = null;
+
+    function connectWebSocket() {
+      const host = window.location.hostname; 
+      const url = `wss://${host}:8765`;
+      ws = new WebSocket(url);
+
+      ws.onopen = async () => {
+        console.log("WebSocket接続成功");
+        document.getElementById("connectionStatus").innerText = "接続済み";
+        await enterFullscreenAndLockOrientation(); 
+        enableWakeLock(); 
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket切断");
+        document.getElementById("connectionStatus").innerText = "切断されました";
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocketエラー:", error);
+        document.getElementById("connectionStatus").innerText = "エラー発生";
+      };
+      if ("wakeLock" in navigator) {
+        isSupported = true;
+        console.log("起動ロック API に対応しています。");
+      } else {
+        wakeButton.disabled = true;
+        console.error( "このブラウザーは起動ロックに対応していません。");
+      }
+      
+    }
+
+    window.addEventListener("gamepadconnected", (event) => {
+      gamepadIndex = event.gamepad.index;
+      document.getElementById("status").innerText = `ゲームパッド: ${event.gamepad.id}`;
+      requestAnimationFrame(updateGamepadStatus);
+    });
+
+    function updateGamepadStatus() {
+      const gamepad = navigator.getGamepads()[gamepadIndex];
+      if (gamepad && ws && ws.readyState === WebSocket.OPEN) {
+        const data = {
+          buttons: gamepad.buttons.map((button) => button.pressed),
+          axes: gamepad.axes,
+        };
+        ws.send(JSON.stringify(data));
+      }
+      requestAnimationFrame(updateGamepadStatus);
+    }
+
+    document.getElementById("connectButton").addEventListener("click", connectWebSocket);
+
+    document.getElementById("send").onclick = () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send("Hello server!");
+        console.log("送信: こんにちは、サーバー！");
+      } else {
+        console.log("WebSocketが接続されていません。");
+      }
+    };
+
+    document.addEventListener("visibilitychange", async () => {
+        console.log("visibilitychange");
+        if (wakeLock !== null && document.visibilityState === "visible") {
+          wakeLock = await navigator.wakeLock.request("screen");
+        }
+    });
+
+    const main = async () => {
+        try {
+          const wakeLock = await navigator.wakeLock.request("screen");
+          wakeLock.addEventListener("release", async () => {
+            wakeLock = await navigator.wakeLock.request("screen");
+            console.log("wakeLock recaptured");
+          });
+        } catch (err) {
+          // 起動ロックの要求に失敗 - 通常は、バッテリー低下などシステムに起因する。
+          console.log(`${err.name}, ${err.message}`);
+        }
+    };
+    main();
+      
+
+    async function enterFullscreenAndLockOrientation() {
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        await elem.requestFullscreen();
+      } else if (elem.webkitRequestFullscreen) {
+        await elem.webkitRequestFullscreen();
+      }
+
+      if (screen.orientation && screen.orientation.lock) {
+        try {
+          await screen.orientation.lock("landscape");
+          console.log("横画面にロック");
+        } catch (err) {
+          console.error("画面ロック失敗:", err);
+        }
+      }
+    }
+
+    async function enableWakeLock() {
+      try {
+        wakeLock = await navigator.wakeLock.request("screen");
+        ws.send("sleep blocked");
+      } catch (err) {
+        ws.send("unable sleep blocking:", err);
+        console.error("スリープ防止エラー:", err);
+      }
+    }
+  </script>
+</body>
+</html>
