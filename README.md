@@ -4,8 +4,8 @@
 また、暗号化通信が必須なweaklockやsleep blockなどを使用しており、今後のブラウザーの既定によっては自己証明書だけでは正しく動作しなくなる可能性があります。
 
 ## Usage
-はじめに自己証明を導入するためsslで鍵を生成し、利用する端末に公開鍵を入れます。
-
+はじめに自己証明を導入するためopensslで鍵を生成し、利用する端末に公開鍵を入れます。
+(Windows11でOpenSSLを利用するための方法)[https://qiita.com/SKY-HaYaTo/items/7c40256543a4f9d14c0d]
 
 certificate.pem  
 key.pem
